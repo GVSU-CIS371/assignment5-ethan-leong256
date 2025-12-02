@@ -145,7 +145,92 @@ export const useBeverageStore = defineStore("BeverageStore", {
         this.currentSyrup
       );
     },
-    makeBeverage() {},
-    setUser(user: User | null) {},
+    makeBeverage() {
+      if (!this.user) {
+        return "No user logged in, Please sign in first";
+      }
+
+      if (!this.currentBase || !this.currentCreamer || !this.currentSyrup) {
+        return "Please select a base, creamer, and syrup.";
+      }
+
+      const beverageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+      const newDrink: BeverageType = {
+        id: beverageId,
+        name: this.currentName || `Drink-${this.beverages.length + 1}`,
+        temp: this.currentTemp,
+        base: this.currentBase,
+        syrup: this.currentSyrup,
+        creamer: this.currentCreamer,
+        uid: this.user.uid
+      };
+
+      const beverageRef = doc(
+        db,
+        "users",
+        this.user.uid,
+        "beverages",
+        beverageId
+      );
+
+      setDoc(beverageRef, newDrink)
+        .catch((e) => console.error("Beverage not saved: ", e));
+
+      this.beverages.push(newDrink);
+      this.currentBeverage = newDrink;
+
+      return `Beverage ${this.currentName} saved succesfully!`
+    },
+    setUser(user: User | null) {
+      this.user = user;
+
+      if (this.snapshotUnsubscribe) {
+        this.snapshotUnsubscribe();
+        this.snapshotUnsubscribe = null;
+      }
+
+      if (!user) {
+        this.beverages = [];
+        this.currentBeverage = null;
+        return;
+      }
+
+      const beverageCollection = collection(
+        db,
+        "users",
+        user.uid,
+        "beverages"
+      );
+
+      const qBeverages = query(
+        beverageCollection,
+        where("uid", "==", user.uid)
+      );
+
+      this.snapshotUnsubscribe = onSnapshot(qBeverages, (snapshot) => {
+        const drinks: BeverageType[] = snapshot.docs.map((doc) => {
+          return {
+            ...(doc.data() as BeverageType),
+            id: doc.id,
+          };
+        });
+
+        this.beverages = drinks;
+
+        if (drinks.length > 0) {
+          if (
+            this.currentBeverage &&
+            drinks.some((d) => d.id === this.currentBeverage!.id)
+          ) {
+            this.currentBeverage = drinks.find((x) => x.id === this.currentBeverage!.id) || null;
+          } else {
+            this.currentBeverage = drinks[0];
+          }
+        } else {
+          this.currentBeverage = null;
+        }
+      });
+    },
   },
 });
