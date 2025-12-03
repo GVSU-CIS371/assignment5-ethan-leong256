@@ -22,7 +22,7 @@ type BeverageType = {
   name: string;
   temp: string;
   base: BaseBeverageType;
-  syrup: SyrupType;
+  syrup: SyrupType | null;
   creamer: CreamerType;
 };
 export type { BaseBeverageType, CreamerType, SyrupType, BeverageType };

@@ -71,15 +71,24 @@
     </ul>
 
     <div class="auth-row">
-      <button @click="withGoogle">Sign in with Google</button>
+      <button v-if="!beverageStore.user" @click="withGoogle">Sign in with Google</button> <!--show only if no one signed in-->
+      <div v-else class="logged-in-row"> <!-- only show when signed in -->
+        <span class="user-label">
+          Signed in as: {{ beverageStore.user.email }} <!-- show user signed in-->
+        </span>
+
+        <button @click="signOutUser">Sign Out</button> <!-- signout button -->
+      </div>
     </div>
+
     <input
       v-model="beverageStore.currentName"
       type="text"
       placeholder="Beverage Name"
+      :disabled="!beverageStore.user"
     />
 
-    <button @click="handleMakeBeverage">🍺 Make Beverage</button>
+    <button @click="handleMakeBeverage" :disabled="!beverageStore.user">🍺 Make Beverage</button> <!-- disabled when no user signed in--> 
 
     <p v-if="message" class="status-message">
       {{ message }}
@@ -101,9 +110,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { onMounted, ref } from "vue";
 import Beverage from "./components/Beverage.vue";
 import { useBeverageStore } from "./stores/beverageStore";
+import {getAuth, GoogleAuthProvider, signInWithPopup,onAuthStateChanged, signOut } from "firebase/auth";
 
 const beverageStore = useBeverageStore();
 beverageStore.init();
@@ -117,7 +127,27 @@ const showMessage = (txt: string) => {
   }, 5000);
 };
 
-const withGoogle = async () => {};
+
+const withGoogle = async () => { // sign into google
+  try {
+    const provider = new GoogleAuthProvider(); // create new sign in object
+    const result = await signInWithPopup(getAuth(), provider); // open google login window
+    beverageStore.setUser(result.user); // signs user in
+  } catch (e) { // error handling if log in fails
+    console.error("Google sign in failed")
+  }
+};
+
+const signOutUser = async () => { // sign out of google
+  await signOut(getAuth()); // firebase ssignout method
+  beverageStore.setUser(null); // signs user out
+};
+
+onMounted(() => { // set up firebase listener
+  onAuthStateChanged(getAuth(), (user) => { // when user signs in
+    beverageStore.setUser(user); // sets to current users beverage
+  });
+});
 
 const handleMakeBeverage = () => {
   const txt = beverageStore.makeBeverage();
