@@ -146,17 +146,17 @@ export const useBeverageStore = defineStore("BeverageStore", {
       );
     },
     makeBeverage() {
-      if (!this.user) {
+      if (!this.user) { // makes sure user is signed in
         return "No user logged in, Please sign in first";
       }
 
-      if (!this.currentBase || !this.currentCreamer || !this.currentSyrup) {
+      if (!this.currentBase || !this.currentCreamer || !this.currentSyrup) { // make sure all ingredientns exists
         return "Please select a base, creamer, and syrup.";
       }
 
-      const beverageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      const beverageId = `${Date.now()}-${Math.random().toString(36).slice(2)}`; // Unique Beverage ID
 
-      const newDrink: BeverageType = {
+      const newDrink: BeverageType = { // make new drink
         id: beverageId,
         name: this.currentName || `Drink-${this.beverages.length + 1}`,
         temp: this.currentTemp,
@@ -166,69 +166,74 @@ export const useBeverageStore = defineStore("BeverageStore", {
         uid: this.user.uid
       };
 
-      const beverageRef = doc(
+
+      const beverageRef = doc( // path in firestore
         db,
-        "users",
-        this.user.uid,
-        "beverages",
-        beverageId
+        "users", // users collection
+        this.user.uid, // user id subcollection
+        "beverages", // beverage subcollection
+        beverageId // document holding user drink
       );
 
-      setDoc(beverageRef, newDrink)
-        .catch((e) => console.error("Beverage not saved: ", e));
+      setDoc(beverageRef, newDrink) // writes user drink data to firestore
+        .catch((e) => console.error("Beverage not saved: ", e)); // error handling if something happens during write
 
-      this.beverages.push(newDrink);
-      this.currentBeverage = newDrink;
+      this.beverages.push(newDrink); // add drink to pinia store
+      this.currentBeverage = newDrink; // display drink in mug
 
       return `Beverage ${this.currentName} saved succesfully!`
     },
-    setUser(user: User | null) {
+
+    setUser(user: User | null) { // sets current user
       this.user = user;
 
+      // stop listening
       if (this.snapshotUnsubscribe) {
         this.snapshotUnsubscribe();
         this.snapshotUnsubscribe = null;
       }
 
-      if (!user) {
+      if (!user) { // if signed out clear beverage choices
         this.beverages = [];
         this.currentBeverage = null;
         return;
       }
 
+      // start new listner
       const beverageCollection = collection(
-        db,
-        "users",
-        user.uid,
-        "beverages"
+        db, // users collection
+        "users", // user id subcollection
+        user.uid, // beverage subcollection
+        "beverages" // document holding user drink
       );
 
-      const qBeverages = query(
-        beverageCollection,
-        where("uid", "==", user.uid)
+      const beveragequery = query( // make sql command
+        beverageCollection, // get beverage document
+        where("uid", "==", user.uid) // where user id = current user id
       );
 
-      this.snapshotUnsubscribe = onSnapshot(qBeverages, (snapshot) => {
-        const drinks: BeverageType[] = snapshot.docs.map((doc) => {
+      this.snapshotUnsubscribe = onSnapshot(beveragequery, (snapshot) => { // make listener
+        const bev: BeverageType[] = snapshot.docs.map((doc) => { // array of user saved Beverages
           return {
-            ...(doc.data() as BeverageType),
-            id: doc.id,
+            ...(doc.data() as BeverageType), // gets fields from beverages document
+            // the '...' automatically uts fields into onjects
+            id: doc.id, // unique id for each beverage
           };
         });
 
-        this.beverages = drinks;
+        this.beverages = bev; // update user beverages array
 
-        if (drinks.length > 0) {
-          if (
+        if (bev.length > 0) { // if beverage exists
+          if ( // if current beverage in firestore
             this.currentBeverage &&
-            drinks.some((d) => d.id === this.currentBeverage!.id)
+            bev.some((d) => d.id === this.currentBeverage!.id)
           ) {
-            this.currentBeverage = drinks.find((x) => x.id === this.currentBeverage!.id) || null;
+            this.currentBeverage = bev.find((x) => x.id === this.currentBeverage!.id) || null; // find matching beverage and set as current
           } else {
-            this.currentBeverage = drinks[0];
+            this.currentBeverage = bev[0]; // if beverage not in firestore select first user saved drink
           }
         } else {
-          this.currentBeverage = null;
+          this.currentBeverage = null; // no drink available
         }
       });
     },
